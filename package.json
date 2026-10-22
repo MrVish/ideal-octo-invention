@@ -11,8 +11,9 @@
     "test": "vitest run",
     "db:push": "prisma db push",
     "db:seed": "tsx prisma/seed.ts",
-    "db:reset": "prisma db push && tsx prisma/seed.ts",
-    "setup": "prisma db push && tsx prisma/seed.ts"
+    "db:reset": "prisma generate && prisma db push && tsx prisma/seed.ts",
+    "setup": "prisma generate && prisma db push && tsx prisma/seed.ts",
+    "postinstall": "prisma generate"
   },
   "dependencies": {
     "@prisma/client": "6.19.3",
@@ -28,5 +29,8 @@
     "tsx": "4.20.5",
     "typescript": "5.9.2",
     "vitest": "3.2.4"
+  },
+  "engines": {
+    "node": ">=18.18"
   }
 }
