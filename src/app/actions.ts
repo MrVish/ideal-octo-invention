@@ -43,6 +43,12 @@ async function locationFor(clientId: string, locationId: string): Promise<string
   return loc?.clientId === clientId ? loc.id : null;
 }
 
+/** Client names are unique, ignoring case. */
+async function clientNameTaken(name: string, exceptId?: string): Promise<boolean> {
+  const clients = await prisma.client.findMany({ select: { id: true, name: true } });
+  return clients.some((c) => c.id !== exceptId && c.name.toLowerCase() === name.toLowerCase());
+}
+
 function refresh(placementId?: string) {
   revalidatePath("/", "layout");
   if (placementId) revalidatePath(`/placements/${placementId}`);
@@ -62,6 +68,7 @@ export async function createClient(fd: FormData) {
   await requireHR();
   const name = str(fd, "name");
   if (!name) throw new Error("Client name is required");
+  if (await clientNameTaken(name)) redirect(`/clients/new?error=${encodeURIComponent(`A client named "${name}" already exists`)}`);
   const copyFrom = str(fd, "copyFrom");
 
   const source =
@@ -88,10 +95,14 @@ export async function createClient(fd: FormData) {
 export async function updateClient(fd: FormData) {
   await requireHR();
   const id = str(fd, "id");
+  const name = str(fd, "name");
+  if (!name || (await clientNameTaken(name, id))) {
+    redirect(`/clients/${id}?error=${encodeURIComponent(name ? `A client named "${name}" already exists` : "Client name is required")}`);
+  }
   await prisma.client.update({
     where: { id },
     data: {
-      name: str(fd, "name"),
+      name,
       active: fd.get("active") === "on",
       clientContactEmails: str(fd, "clientContactEmails"),
       escalationEmails: str(fd, "escalationEmails"),

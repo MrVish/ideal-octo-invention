@@ -4,9 +4,16 @@ import { prisma } from "@/lib/db";
 import { hrOnly } from "@/lib/viewer";
 import { addTemplateItem, deleteLocation, deleteTemplateItem, saveLocation, updateClient } from "../../actions";
 
-export default async function ClientPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function ClientPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ error?: string }>;
+}) {
   await hrOnly();
   const { id } = await params;
+  const { error } = await searchParams;
   const client = await prisma.client.findUnique({
     where: { id },
     include: { checklistTemplates: { orderBy: [{ phase: "desc" }, { sortOrder: "asc" }] }, locations: { orderBy: { name: "asc" } } },
@@ -21,6 +28,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
       <h1>{client.name}</h1>
       <p className="subtitle">Changes to the checklist apply to new placements; existing placements keep their own copy.</p>
 
+      {error && <p className="notice error">{error}</p>}
       <div className="card">
         <h2>Settings</h2>
         <form action={updateClient}>

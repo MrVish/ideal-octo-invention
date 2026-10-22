@@ -2,14 +2,16 @@ import { prisma } from "@/lib/db";
 import { hrOnly } from "@/lib/viewer";
 import { createClient } from "../../actions";
 
-export default async function NewClient() {
+export default async function NewClient({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
   await hrOnly();
+  const { error } = await searchParams;
   const clients = await prisma.client.findMany({ orderBy: { name: "asc" } });
   const intuit = clients.find((c) => c.name.toLowerCase() === "intuit");
   return (
     <>
       <h1>Add client</h1>
       <p className="subtitle">Start from an existing client&apos;s checklist (Intuit is the baseline) and adjust afterwards.</p>
+      {error && <p className="notice error">{error}</p>}
       <form action={createClient} className="card">
         <div className="form-grid">
           <label>

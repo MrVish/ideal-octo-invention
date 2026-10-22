@@ -83,3 +83,4 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 .milestone { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--border); gap: 8px; }
 .milestone:last-child { border-bottom: none; }
 .notice { background: var(--accent-soft); border-radius: 8px; padding: 10px 12px; margin-bottom: 16px; }
+.notice.error { background: var(--critical-soft); color: var(--critical); }
