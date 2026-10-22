@@ -1,0 +1,157 @@
+// Employee lifecycle for client placements: onboarding checklist, client
+// entry/exit communication (billing dates, client ID), and client asset tracking.
+//
+// SQLite is used for local development. For production, change the provider to
+// "postgresql" and point DATABASE_URL at a Postgres instance. String fields are
+// used in place of enums so the schema works on both.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// A client company employees are placed at (e.g. Intuit). Everything that
+// differs between clients is configured here rather than in code.
+model Client {
+  id                   String   @id @default(cuid())
+  name                 String   @unique
+  active               Boolean  @default(true)
+  // Recipients of the entry / exit emails on the client side (comma separated)
+  clientContactEmails  String   @default("")
+  // Internal people copied on reminders, e.g. "Veena, Honey, Raveen" (comma separated emails)
+  escalationEmails     String   @default("")
+  // Send the exit email at least this many days before LWD
+  exitEmailLeadDays    Int      @default(7)
+  // Whether employees must log client-issued assets in the portal
+  assetTrackingEnabled Boolean  @default(true)
+  // Days after placement start before missing asset details trigger a reminder
+  assetEntryGraceDays  Int      @default(3)
+  // Minimum days between repeated reminders for the same issue
+  reminderIntervalDays Int      @default(2)
+  createdAt            DateTime @default(now())
+
+  checklistTemplates ChecklistTemplateItem[]
+  locations          Location[]
+  placements         Placement[]
+}
+
+// One step of a client's onboarding or offboarding checklist.
+model ChecklistTemplateItem {
+  id          String  @id @default(cuid())
+  clientId    String
+  client      Client  @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  phase       String // ONBOARDING | OFFBOARDING
+  title       String
+  description String  @default("")
+  // EMPLOYEE items can be completed by the employee in the portal (acknowledgements,
+  // trainings); HR items can only be completed by HR.
+  owner       String  @default("EMPLOYEE") // EMPLOYEE | HR
+  required    Boolean @default(true)
+  sortOrder   Int     @default(0)
+
+  items ChecklistItem[]
+}
+
+// A client office location and the SPOC who owns client assets there.
+model Location {
+  id        String  @id @default(cuid())
+  clientId  String
+  client    Client  @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  name      String
+  spocName  String  @default("")
+  spocEmail String  @default("")
+  spocPhone String  @default("")
+
+  placements Placement[]
+
+  @@unique([clientId, name])
+}
+
+model Employee {
+  id        String   @id @default(cuid())
+  empCode   String   @unique
+  name      String
+  email     String   @unique
+  createdAt DateTime @default(now())
+
+  placements Placement[]
+}
+
+// An employee's engagement at a client. Holds the dates that drive billing and
+// the client-side lifecycle steps.
+model Placement {
+  id                    String    @id @default(cuid())
+  employeeId            String
+  employee              Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  clientId              String
+  client                Client    @relation(fields: [clientId], references: [id])
+  locationId            String?
+  location              Location? @relation(fields: [locationId], references: [id])
+  role                  String    @default("")
+  // Employee's ID/login at the client, deactivated on exit
+  clientEmployeeId      String    @default("")
+  startDate             DateTime
+  billingStartDate      DateTime?
+  lastWorkingDay        DateTime?
+  billingStopDate       DateTime?
+  bgcStatus             String    @default("PENDING") // PENDING | GREEN | AMBER | RED
+  entryEmailSentAt      DateTime?
+  exitEmailSentAt       DateTime?
+  clientIdDeactivatedAt DateTime?
+  closedAt              DateTime?
+  createdAt             DateTime  @default(now())
+
+  checklist ChecklistItem[]
+  assets    Asset[]
+  reminders ReminderLog[]
+}
+
+// A placement's copy of a checklist template item, so later template edits do
+// not rewrite history.
+model ChecklistItem {
+  id             String                 @id @default(cuid())
+  placementId    String
+  placement      Placement              @relation(fields: [placementId], references: [id], onDelete: Cascade)
+  templateItemId String?
+  templateItem   ChecklistTemplateItem? @relation(fields: [templateItemId], references: [id], onDelete: SetNull)
+  phase          String
+  title          String
+  description    String                 @default("")
+  owner          String                 @default("EMPLOYEE")
+  required       Boolean                @default(true)
+  sortOrder      Int                    @default(0)
+  completedAt    DateTime?
+  completedBy    String?
+  note           String                 @default("")
+}
+
+// An asset issued by the client to the employee.
+model Asset {
+  id          String    @id @default(cuid())
+  placementId String
+  placement   Placement @relation(fields: [placementId], references: [id], onDelete: Cascade)
+  type        String // Laptop, Monitor, Headset, Token, ...
+  makeModel   String    @default("")
+  serialNo    String    @default("")
+  assetTag    String    @default("")
+  receivedAt  DateTime?
+  returnedAt  DateTime?
+  notes       String    @default("")
+  createdAt   DateTime  @default(now())
+}
+
+// Record of every reminder the system generated, also used to throttle repeats.
+model ReminderLog {
+  id          String    @id @default(cuid())
+  placementId String
+  placement   Placement @relation(fields: [placementId], references: [id], onDelete: Cascade)
+  alertCode   String
+  recipients  String
+  subject     String
+  body        String
+  createdAt   DateTime  @default(now())
+}
